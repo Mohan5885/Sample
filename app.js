@@ -46,6 +46,54 @@ const items = [
         supplier: "Paper World",
         description: "A4 printing paper",
         active: true
+    },
+    {
+        sku: "MON005",
+        name: "24-inch LED Monitor",
+        category: "Electronics",
+        unit: "Piece",
+        price: 12800,
+        quantity: 8,
+        reorder: 3,
+        supplier: "Acer India",
+        description: "Full HD LED monitor for office workstations",
+        active: true
+    },
+    {
+        sku: "KEY006",
+        name: "Mechanical Keyboard",
+        category: "Electronics",
+        unit: "Piece",
+        price: 3200,
+        quantity: 4,
+        reorder: 6,
+        supplier: "Logitech",
+        description: "Wired mechanical keyboard for office use",
+        active: true
+    },
+    {
+        sku: "DSK007",
+        name: "Executive Office Desk",
+        category: "Furniture",
+        unit: "Piece",
+        price: 8900,
+        quantity: 6,
+        reorder: 2,
+        supplier: "Office Furnishings",
+        description: "Wood-finish desk with cable management",
+        active: true
+    },
+    {
+        sku: "PEN008",
+        name: "Blue Ballpoint Pens",
+        category: "Office Supplies",
+        unit: "Box",
+        price: 180,
+        quantity: 0,
+        reorder: 10,
+        supplier: "Classmate",
+        description: "Box of blue ballpoint pens for daily office use",
+        active: true
     }
 ];
 
@@ -54,6 +102,7 @@ const itemForm = document.getElementById("itemForm");
 const formPanel = document.getElementById("formPanel");
 const formMessage = document.getElementById("formMessage");
 const categoryFilter = document.getElementById("categoryFilter");
+const statusFilter = document.getElementById("statusFilter");
 const profileBtn = document.getElementById("profileBtn");
 const profileDropdown = document.getElementById("profileDropdown");
 const customCategoryInput = document.getElementById("customCategory");
@@ -68,11 +117,56 @@ const confirmPanel = document.getElementById("confirmPanel");
 const closeConfirmBtn = document.getElementById("closeConfirmBtn");
 const cancelConfirmBtn = document.getElementById("cancelConfirmBtn");
 const confirmActionBtn = document.getElementById("confirmActionBtn");
+const themeToggle = document.getElementById("themeToggle");
+const themeToggleLabel = themeToggle.querySelector(".theme-toggle-label");
 
 let editingSku = null;
+let hasUnsubmittedFormDraft = false;
 let currentViewingItem = null;
 let currentConfirmItem = null;
 let lastFocusedElement = null;
+
+function setTheme(theme) {
+    const isDark = theme === "dark";
+    const nextTheme = isDark ? "light" : "dark";
+    const label = `Switch to ${nextTheme} theme`;
+
+    document.documentElement.dataset.theme = theme;
+    themeToggle.setAttribute("aria-pressed", String(isDark));
+    themeToggle.setAttribute("aria-label", label);
+    themeToggle.title = label;
+    themeToggleLabel.textContent = `${nextTheme === "dark" ? "Dark" : "Light"} mode`;
+}
+
+let savedTheme = null;
+
+try {
+    savedTheme = localStorage.getItem("stockpilot-theme");
+} catch (error) {
+    console.error("Unable to read the saved theme preference.", error);
+}
+
+setTheme(savedTheme === "dark" ? "dark" : "light");
+
+themeToggle.addEventListener("click", () => {
+    const nextTheme =
+        document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+
+    if (
+        document.startViewTransition &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+        document.startViewTransition(() => setTheme(nextTheme));
+    } else {
+        setTheme(nextTheme);
+    }
+
+    try {
+        localStorage.setItem("stockpilot-theme", nextTheme);
+    } catch (error) {
+        console.error("Unable to save the theme preference.", error);
+    }
+});
 
 function formatMoney(amount) {
     return new Intl.NumberFormat("en-IN", {
@@ -92,16 +186,6 @@ function getStockClass(status) {
     if (status === "Out of Stock") return "out-stock";
     if (status === "Low Stock") return "low-stock";
     return "in-stock";
-}
-
-function getItemIcon(category) {
-    const icons = {
-        Electronics: "💻",
-        "Office Supplies": "📦",
-        Furniture: "🪑"
-    };
-
-    return icons[category] || "📋";
 }
 
 function escapeHTML(value) {
@@ -134,15 +218,34 @@ function updateDashboard() {
         (sum, item) => sum + item.price * item.quantity,
         0
     );
+    const lowStockRate = activeItems.length
+        ? Math.round((lowStock / activeItems.length) * 100)
+        : 0;
+    const inactiveItems = items.length - activeItems.length;
 
     document.getElementById("totalItems").textContent =
         activeItems.length;
+
+    document.getElementById("activeItemsContext").textContent =
+        inactiveItems
+            ? `${inactiveItems} inactive item${inactiveItems === 1 ? "" : "s"}`
+            : "All catalogue items active";
 
     document.getElementById("totalUnits").textContent =
         totalUnits.toLocaleString("en-IN");
 
     document.getElementById("lowStock").textContent =
-        String(lowStock).padStart(2, "0");
+        lowStock;
+    document.getElementById("lowStockContext").textContent =
+        `${lowStockRate}% of active items`;
+
+    const lowStockProgress = document.getElementById("lowStockProgress");
+    lowStockProgress.setAttribute("aria-valuenow", lowStockRate);
+    lowStockProgress.setAttribute(
+        "aria-valuetext",
+        `${lowStockRate}% of active items at or below reorder level`
+    );
+    lowStockProgress.firstElementChild.style.width = `${lowStockRate}%`;
 
     document.getElementById("inventoryValue").textContent =
         inventoryValue >= 100000
@@ -173,6 +276,182 @@ function updateCategoryFilter() {
         : "";
 }
 
+function updateFilterDropdown(select) {
+    const wrapper = select.closest(".filter-select-wrapper");
+    const trigger = wrapper.querySelector(".filter-select-trigger");
+    const label = wrapper.querySelector(".filter-select-label");
+    const menu = wrapper.querySelector(".filter-select-menu");
+    const selectedOption = Array.from(select.options).find(
+        option => option.value === select.value
+    );
+
+    label.textContent = selectedOption
+        ? selectedOption.textContent
+        : select.options[0].textContent;
+    menu.replaceChildren();
+
+    Array.from(select.options).forEach(option => {
+        const optionButton = document.createElement("button");
+        optionButton.type = "button";
+        optionButton.className = "filter-select-option";
+        optionButton.setAttribute("role", "option");
+        optionButton.setAttribute(
+            "aria-selected",
+            String(option.value === select.value)
+        );
+        optionButton.tabIndex = -1;
+        const optionLabel = document.createElement("span");
+        optionLabel.className = "filter-select-option-label";
+        optionLabel.textContent = option.textContent;
+        const selectedMark = document.createElement("span");
+        selectedMark.className = "filter-select-option-check";
+        selectedMark.setAttribute("aria-hidden", "true");
+        selectedMark.textContent = "✓";
+        optionButton.append(optionLabel, selectedMark);
+
+        optionButton.addEventListener("click", () => {
+            select.value = option.value;
+            closeFilterDropdown(wrapper);
+            trigger.focus();
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+
+        menu.append(optionButton);
+    });
+
+    trigger.setAttribute("aria-expanded", String(!menu.hidden));
+}
+
+function positionFilterDropdown(wrapper) {
+    const trigger = wrapper.querySelector(".filter-select-trigger");
+    const menu = wrapper.querySelector(".filter-select-menu");
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuHeight = Math.min(menu.scrollHeight, 240);
+    const spaceBelow = window.innerHeight - triggerRect.bottom;
+    const openAbove = spaceBelow < menuHeight + 8 &&
+        triggerRect.top > spaceBelow;
+    const left = Math.max(
+        8,
+        Math.min(triggerRect.left, window.innerWidth - triggerRect.width - 8)
+    );
+    const top = openAbove
+        ? Math.max(8, triggerRect.top - menuHeight - 8)
+        : Math.min(
+            triggerRect.bottom + 6,
+            window.innerHeight - menuHeight - 8
+        );
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+    menu.style.width = `${triggerRect.width}px`;
+}
+
+function closeFilterDropdown(wrapper) {
+    const trigger = wrapper.querySelector(".filter-select-trigger");
+    const menu = wrapper.querySelector(".filter-select-menu");
+
+    menu.hidden = true;
+    wrapper.classList.remove("is-open");
+    trigger.setAttribute("aria-expanded", "false");
+}
+
+function closeFilterDropdowns() {
+    document
+        .querySelectorAll(".filter-select-wrapper.is-open")
+        .forEach(closeFilterDropdown);
+}
+
+function initializeFilterDropdown(select) {
+    const wrapper = select.closest(".filter-select-wrapper");
+    const trigger = wrapper.querySelector(".filter-select-trigger");
+    const menu = wrapper.querySelector(".filter-select-menu");
+
+    trigger.addEventListener("click", () => {
+        if (!menu.hidden) {
+            closeFilterDropdown(wrapper);
+            return;
+        }
+
+        closeFilterDropdowns();
+        updateFilterDropdown(select);
+        menu.hidden = false;
+        wrapper.classList.add("is-open");
+        trigger.setAttribute("aria-expanded", "true");
+        positionFilterDropdown(wrapper);
+    });
+
+    trigger.addEventListener("keydown", event => {
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+        event.preventDefault();
+        if (menu.hidden) trigger.click();
+
+        const selectedOption = menu.querySelector('[aria-selected="true"]');
+        (selectedOption || menu.querySelector('[role="option"]'))?.focus();
+    });
+
+    menu.addEventListener("keydown", event => {
+        const options = Array.from(menu.querySelectorAll('[role="option"]'));
+        const currentIndex = options.indexOf(document.activeElement);
+        let nextIndex;
+
+        if (event.key === "ArrowDown") {
+            nextIndex = (currentIndex + 1) % options.length;
+        } else if (event.key === "ArrowUp") {
+            nextIndex = (currentIndex - 1 + options.length) % options.length;
+        } else if (event.key === "Home") {
+            nextIndex = 0;
+        } else if (event.key === "End") {
+            nextIndex = options.length - 1;
+        } else {
+            return;
+        }
+
+        event.preventDefault();
+        options[nextIndex]?.focus();
+    });
+}
+
+function updateFormCategoryOptions() {
+    const categorySelect = document.getElementById("category");
+    const selectedCategory = categorySelect.value;
+    const defaultCategories = new Set([
+        "",
+        "Electronics",
+        "Office Supplies",
+        "Furniture",
+        "Others"
+    ]);
+    const categories = [...new Set(items.map(item => item.category))]
+        .filter(category => !defaultCategories.has(category))
+        .sort((first, second) => first.localeCompare(second));
+
+    categorySelect
+        .querySelectorAll("option[data-existing-category]")
+        .forEach(option => {
+            if (!categories.includes(option.value)) option.remove();
+        });
+
+    const hasCategoryOption = category =>
+        Array.from(categorySelect.options).some(
+            option => option.value === category
+        );
+
+    const othersOption = Array.from(categorySelect.options).find(
+        option => option.value === "Others"
+    );
+
+    categories.forEach(category => {
+        if (hasCategoryOption(category)) return;
+
+        const option = new Option(category, category);
+        option.dataset.existingCategory = "true";
+        categorySelect.insertBefore(option, othersOption);
+    });
+
+    categorySelect.value = selectedCategory;
+}
+
 function syncCustomOption(selectId, input, value, isCustom = false) {
     const select = document.getElementById(selectId);
 
@@ -201,12 +480,14 @@ function syncCustomOption(selectId, input, value, isCustom = false) {
 
 function renderItems() {
     updateCategoryFilter();
+    updateFilterDropdown(categoryFilter);
+    updateFilterDropdown(statusFilter);
 
     const search = document.getElementById("searchInput")
         .value.trim().toLowerCase();
 
     const category = categoryFilter.value;
-    const status = document.getElementById("statusFilter").value;
+    const status = statusFilter.value;
 
     const filteredItems = items.filter(item => {
         const matchesSearch =
@@ -228,7 +509,7 @@ function renderItems() {
     if (filteredItems.length === 0) {
         itemsTable.innerHTML = `
             <tr>
-                <td colspan="7" class="empty-table-state">
+                <td colspan="6" class="empty-table-state">
                     <div class="empty-state-box">
                         <div class="empty-state-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -252,9 +533,6 @@ function renderItems() {
         row.innerHTML = `
             <td>
                 <div class="item-cell">
-                    <div class="item-icon" aria-hidden="true">
-                        ${getItemIcon(item.category)}
-                    </div>
                     <div class="item-meta">
                         <span class="item-name"></span>
                         <span class="item-sku"></span>
@@ -262,25 +540,18 @@ function renderItems() {
                 </div>
             </td>
             <td>
-                <span class="category-pill item-category"></span>
+                <span class="category-pill item-category"><span class="category-pill-label"></span></span>
             </td>
             <td class="price-cell">
                 <span class="price-val">${formatMoney(item.price)}</span>
             </td>
             <td class="quantity-cell">
                 <span class="qty-val">${item.quantity}</span>
-                <span class="qty-unit">${escapeHTML(item.unit)}</span>
             </td>
             <td>
                 <span class="stock-badge ${getStockClass(stockStatus)}">
                     <span class="badge-dot"></span>
                     <span>${stockStatus}</span>
-                </span>
-            </td>
-            <td>
-                <span class="${item.active ? "active-badge" : "inactive-badge"}">
-                    <span class="badge-dot"></span>
-                    <span>${item.active ? "Active" : "Inactive"}</span>
                 </span>
             </td>
             <td>
@@ -315,7 +586,8 @@ function renderItems() {
                         title="${item.active ? "Deactivate" : "Activate"} item"
                         data-action="toggle"
                         data-sku="${escapeHTML(item.sku)}"
-                        aria-label="${item.active ? "Deactivate" : "Activate"} ${escapeHTML(item.name)}">
+                        aria-label="${item.active ? "Deactivate" : "Activate"} ${escapeHTML(item.name)}"
+                        aria-pressed="${item.active}">
                         ${item.active
                             ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`
                             : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`}
@@ -326,7 +598,10 @@ function renderItems() {
 
         row.querySelector(".item-name").textContent = item.name;
         row.querySelector(".item-sku").textContent = item.sku;
-        row.querySelector(".item-category").textContent = item.category;
+        const categoryPill = row.querySelector(".item-category");
+        categoryPill.querySelector(".category-pill-label").textContent =
+            item.category;
+        categoryPill.title = item.category;
 
         itemsTable.appendChild(row);
     });
@@ -339,12 +614,18 @@ function renderItems() {
 
 function openForm(item = null) {
     lastFocusedElement = document.activeElement;
-    editingSku = item ? item.sku : null;
+    updateFormCategoryOptions();
+    const resumeDraft = !item && hasUnsubmittedFormDraft;
 
-    itemForm.reset();
-    formMessage.textContent = "";
-    syncCustomOption("category", customCategoryInput);
-    syncCustomOption("unit", customUnitInput);
+    if (!resumeDraft) {
+        itemForm.reset();
+        formMessage.textContent = "";
+        syncCustomOption("category", customCategoryInput);
+        syncCustomOption("unit", customUnitInput);
+    }
+
+    editingSku = item ? item.sku : null;
+    hasUnsubmittedFormDraft = false;
 
     document.getElementById("formTitle").textContent =
         item ? "Edit Item" : "Add New Item";
@@ -354,7 +635,9 @@ function openForm(item = null) {
 
     document.getElementById("sku").readOnly = Boolean(item);
 
-    if (item) {
+    if (resumeDraft) {
+        formMessage.textContent = "";
+    } else if (item) {
         document.getElementById("sku").value = item.sku;
         document.getElementById("name").value = item.name;
         syncCustomOption(
@@ -384,15 +667,21 @@ function openForm(item = null) {
     document.getElementById("sku").focus();
 }
 
-function closeForm() {
+function closeForm({ discardDraft = false } = {}) {
     formPanel.classList.remove("visible");
     formPanel.hidden = true;
     document.body.classList.remove("modal-open");
-    itemForm.reset();
     formMessage.textContent = "";
+
+    hasUnsubmittedFormDraft = !discardDraft && !editingSku;
     editingSku = null;
-    syncCustomOption("category", customCategoryInput);
-    syncCustomOption("unit", customUnitInput);
+
+    if (discardDraft) {
+        itemForm.reset();
+        hasUnsubmittedFormDraft = false;
+        syncCustomOption("category", customCategoryInput);
+        syncCustomOption("unit", customUnitInput);
+    }
 
     if (lastFocusedElement && typeof lastFocusedElement.focus === "function") {
         lastFocusedElement.focus();
@@ -406,10 +695,6 @@ function openViewModal(item) {
 
     const stockStatus = getStockStatus(item);
     const stockClass = getStockClass(stockStatus);
-    const icon = getItemIcon(item.category);
-
-    const badgeIcon = document.getElementById("viewItemBadgeIcon");
-    if (badgeIcon) badgeIcon.textContent = icon;
 
     const codeSub = document.getElementById("viewItemCodeSub");
     if (codeSub) codeSub.textContent = `SKU: ${item.sku}`;
@@ -421,7 +706,7 @@ function openViewModal(item) {
     if (itemSku) itemSku.textContent = item.sku;
 
     const itemCat = document.getElementById("viewItemCategory");
-    if (itemCat) itemCat.textContent = `${icon} ${item.category}`;
+    if (itemCat) itemCat.textContent = item.category;
 
     const itemPrice = document.getElementById("viewItemPrice");
     if (itemPrice) itemPrice.textContent = formatMoney(item.price);
@@ -510,7 +795,6 @@ function openConfirmModal(item) {
     const confirmMessageText = document.getElementById("confirmMessageText");
     const confirmPreviewName = document.getElementById("confirmPreviewName");
     const confirmPreviewSku = document.getElementById("confirmPreviewSku");
-    const confirmItemCategoryIcon = document.getElementById("confirmItemCategoryIcon");
     const confirmPreviewBadge = document.getElementById("confirmPreviewBadge");
 
     if (confirmTitle) {
@@ -523,10 +807,6 @@ function openConfirmModal(item) {
 
     if (confirmPreviewSku) {
         confirmPreviewSku.textContent = `SKU: ${item.sku}`;
-    }
-
-    if (confirmItemCategoryIcon) {
-        confirmItemCategoryIcon.textContent = getItemIcon(item.category);
     }
 
     if (confirmMessageText) {
@@ -602,7 +882,7 @@ document.getElementById("closeFormBtn").addEventListener(
 
 document.getElementById("cancelBtn").addEventListener(
     "click",
-    closeForm
+    () => closeForm({ discardDraft: true })
 );
 
 if (closeViewBtn) {
@@ -683,12 +963,25 @@ document.addEventListener("click", event => {
         profileDropdown.hidden = true;
         profileBtn.setAttribute("aria-expanded", "false");
     }
+
+    if (!event.target.closest(".filter-select-wrapper")) {
+        closeFilterDropdowns();
+    }
 });
 
 document.addEventListener("keydown", event => {
     if (event.key === "Escape") {
+        const openFilter = document.querySelector(
+            ".filter-select-wrapper.is-open"
+        );
+        if (openFilter) {
+            closeFilterDropdown(openFilter);
+            openFilter.querySelector(".filter-select-trigger").focus();
+            return;
+        }
+
         if (!formPanel.hidden) {
-            closeForm();
+            closeForm({ discardDraft: true });
         }
 
         if (viewPanel && !viewPanel.hidden) {
@@ -714,9 +1007,18 @@ document.getElementById("categoryFilter").addEventListener(
     renderItems
 );
 
-document.getElementById("statusFilter").addEventListener(
+statusFilter.addEventListener(
     "change",
     renderItems
+);
+
+initializeFilterDropdown(categoryFilter);
+initializeFilterDropdown(statusFilter);
+window.addEventListener("resize", closeFilterDropdowns);
+window.addEventListener("scroll", closeFilterDropdowns);
+document.querySelector(".table-wrapper").addEventListener(
+    "scroll",
+    closeFilterDropdowns
 );
 
 itemsTable.addEventListener("click", event => {

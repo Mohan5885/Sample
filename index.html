@@ -112,16 +112,30 @@
         <!-- Top Header -->
         <header class="topbar">
             <div class="topbar-title-group">
-                <nav class="breadcrumb" aria-label="Breadcrumb">
-                    <span>Inventory</span>
-                    <span class="breadcrumb-separator">/</span>
-                    <strong>Items</strong>
-                </nav>
                 <h1>Item Management</h1>
             </div>
 
             <!-- Profile Menu -->
             <div class="top-actions">
+                <button
+                    type="button"
+                    class="theme-toggle"
+                    id="themeToggle"
+                    aria-label="Switch to dark theme"
+                    aria-pressed="false"
+                    title="Switch to dark theme"
+                >
+                    <span class="theme-toggle-icon" aria-hidden="true">
+                        <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13z"/>
+                        </svg>
+                        <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="4"/>
+                            <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>
+                        </svg>
+                    </span>
+                    <span class="theme-toggle-label">Dark mode</span>
+                </button>
                 <div class="profile-menu-container">
                     <button
                         type="button"
@@ -163,7 +177,7 @@
         <section class="stats">
             <article class="stat-card">
                 <div class="stat-heading">
-                    <p>Total Items</p>
+                    <p>Active Items</p>
                     <div class="stat-icon green" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -175,7 +189,7 @@
                 <h2 id="totalItems">4</h2>
                 <div class="stat-footer">
                     <span class="stat-indicator green-dot"></span>
-                    <span>Items in catalogue</span>
+                    <span id="activeItemsContext">Active in catalogue</span>
                 </div>
             </article>
 
@@ -193,7 +207,7 @@
                 <h2 id="totalUnits">32</h2>
                 <div class="stat-footer">
                     <span class="stat-indicator blue-dot"></span>
-                    <span>Units currently available</span>
+                    <span>Available across active items</span>
                 </div>
             </article>
 
@@ -211,7 +225,18 @@
                 <h2 id="lowStock">02</h2>
                 <div class="stat-footer warning-text">
                     <span class="stat-indicator orange-dot"></span>
-                    <span>Require replenishment</span>
+                    <span id="lowStockContext">0% of active items</span>
+                </div>
+                <div
+                    class="stat-progress"
+                    id="lowStockProgress"
+                    role="progressbar"
+                    aria-label="Share of active items at or below reorder level"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow="0"
+                >
+                    <span></span>
                 </div>
             </article>
 
@@ -225,7 +250,7 @@
                 <h2 id="inventoryValue">₹8.33L</h2>
                 <div class="stat-footer">
                     <span class="stat-indicator purple-dot"></span>
-                    <span>Based on current stock</span>
+                    <span>Value of active stock</span>
                 </div>
             </article>
         </section>
@@ -235,7 +260,6 @@
             <div class="section-header">
                 <div class="section-header-title">
                     <h2>Item Catalogue</h2>
-                    <p>View, filter, manage, and track all inventory items.</p>
                 </div>
 
                 <div class="catalogue-actions">
@@ -258,51 +282,87 @@
                 </div>
             </div>
 
-            <!-- Search and Filters -->
-            <div class="filters">
-                <div class="search-box">
-                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="11" cy="11" r="8"/>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    </svg>
-                    <input
-                        type="text"
-                        id="searchInput"
-                        placeholder="Search by item name, SKU or category..."
-                        autocomplete="off"
-                    >
-                </div>
-
-                <div class="filter-controls">
-                    <div class="select-wrapper">
-                        <select id="categoryFilter" aria-label="Filter by category">
-                            <option value="">All Categories</option>
-                            <option value="Electronics">Electronics</option>
-                            <option value="Office Supplies">Office Supplies</option>
-                            <option value="Furniture">Furniture</option>
-                            <option value="Others">Others</option>
-                        </select>
-                        <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <polyline points="6 9 12 15 18 9"/>
-                        </svg>
-                    </div>
-
-                    <div class="select-wrapper">
-                        <select id="statusFilter" aria-label="Filter by stock status">
-                            <option value="">All Stock Status</option>
-                            <option value="In Stock">In Stock</option>
-                            <option value="Low Stock">Low Stock</option>
-                            <option value="Out of Stock">Out of Stock</option>
-                        </select>
-                        <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <polyline points="6 9 12 15 18 9"/>
-                        </svg>
-                    </div>
-                </div>
-            </div>
-
             <!-- Items Table -->
             <div class="table-wrapper">
+                <!-- Search and filters scroll away with the table rows. -->
+                <div class="filters">
+                    <div class="search-box">
+                        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input
+                            type="text"
+                            id="searchInput"
+                            placeholder="Search by item name, SKU or category..."
+                            autocomplete="off"
+                        >
+                    </div>
+
+                    <div class="filter-controls">
+                        <div class="select-wrapper filter-select-wrapper">
+                            <button
+                                type="button"
+                                class="filter-select-trigger"
+                                id="categoryFilterButton"
+                                aria-label="Filter by category"
+                                aria-haspopup="listbox"
+                                aria-expanded="false"
+                                aria-controls="categoryFilterOptions"
+                            >
+                                <span class="filter-select-label">All Categories</span>
+                                <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </button>
+                            <div
+                                class="filter-select-menu"
+                                id="categoryFilterOptions"
+                                role="listbox"
+                                aria-label="Filter by category"
+                                hidden
+                            ></div>
+                            <select id="categoryFilter" aria-label="Filter by category" hidden>
+                                <option value="">All Categories</option>
+                                <option value="Electronics">Electronics</option>
+                                <option value="Office Supplies">Office Supplies</option>
+                                <option value="Furniture">Furniture</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+
+                        <div class="select-wrapper filter-select-wrapper">
+                            <button
+                                type="button"
+                                class="filter-select-trigger"
+                                id="statusFilterButton"
+                                aria-label="Filter by stock status"
+                                aria-haspopup="listbox"
+                                aria-expanded="false"
+                                aria-controls="statusFilterOptions"
+                            >
+                                <span class="filter-select-label">All Stock Status</span>
+                                <svg class="select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </button>
+                            <div
+                                class="filter-select-menu"
+                                id="statusFilterOptions"
+                                role="listbox"
+                                aria-label="Filter by stock status"
+                                hidden
+                            ></div>
+                            <select id="statusFilter" aria-label="Filter by stock status" hidden>
+                                <option value="">All Stock Status</option>
+                                <option value="In Stock">In Stock</option>
+                                <option value="Low Stock">Low Stock</option>
+                                <option value="Out of Stock">Out of Stock</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <table>
                     <colgroup>
                         <col class="item-column">
@@ -310,7 +370,6 @@
                         <col class="price-column">
                         <col class="quantity-column">
                         <col class="stock-column">
-                        <col class="status-column">
                         <col class="actions-column">
                     </colgroup>
                     <thead>
@@ -320,7 +379,6 @@
                             <th>UNIT PRICE</th>
                             <th>QUANTITY</th>
                             <th>STOCK STATUS</th>
-                            <th>STATUS</th>
                             <th>ACTIONS</th>
                         </tr>
                     </thead>
@@ -329,14 +387,8 @@
                 </table>
             </div>
 
-            <div class="table-footer">
-                <div class="table-footer-left">
-                    <span id="resultCount">Showing items</span>
-                </div>
-                <div class="table-footer-right">
-                    <span class="system-status-indicator"></span>
-                    <span>StockPilot ERP · Inventory Management System</span>
-                </div>
+            <div class="catalogue-footer">
+                <span class="catalogue-count" id="resultCount">Showing items</span>
             </div>
         </section>
     </main>
@@ -573,9 +625,6 @@
     >
         <div class="form-header">
             <div class="form-header-title-box">
-                <div class="modal-icon-badge" aria-hidden="true" id="viewItemBadgeIcon">
-                    💻
-                </div>
                 <div>
                     <h2 id="viewItemTitle">Item Details</h2>
                     <p id="viewItemCodeSub">Inventory SKU Specifications</p>
@@ -726,7 +775,6 @@
 
             <div class="confirm-item-preview">
                 <div class="confirm-preview-left">
-                    <span class="confirm-preview-icon" id="confirmItemCategoryIcon" aria-hidden="true">💻</span>
                     <div>
                         <strong class="confirm-preview-name" id="confirmPreviewName">Dell Latitude Laptop</strong>
                         <span class="confirm-preview-sku" id="confirmPreviewSku">SKU: LAP001</span>
